@@ -137,6 +137,11 @@ function ActivityJobItem({
       : null,
   );
 
+  // Don't render if job is deleted or has invalid data
+  if (!job || !job.pickupCity || !job.deliveryCity || !job.jobId) {
+    return null;
+  }
+
   return (
     <ActivityCard
       jobId={jobId}

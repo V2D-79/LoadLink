@@ -429,6 +429,28 @@ export default function PostJobScreen() {
           onPress={() => {
             setDone(false);
             setStep(0);
+            setPickupCoords(null);
+            setDeliveryCoords(null);
+            setServerError('');
+            // Reset form to default values
+            setValue('pickupCity', '');
+            setValue('pickupState', '');
+            setValue('pickupAddress', '');
+            setValue('deliveryCity', '');
+            setValue('deliveryState', '');
+            setValue('deliveryAddress', '');
+            setValue('goodsCategory', '');
+            setValue('goodsDescription', '');
+            setValue('weightTonnes', 0);
+            setValue('volumeCbm', undefined);
+            setValue('requiredBodyType', '');
+            setValue('requiredVehicleType', '');
+            setValue('budgetInr', undefined);
+            setValue('paymentTerms', 'on_delivery');
+            setValue('loadingResponsibility', 'factory');
+            setValue('availableFrom', todayIso());
+            setValue('availableUntil', addDays(todayIso(), 7));
+            setValue('specialInstructions', '');
           }}
           variant="outline"
           size="lg"
