@@ -36,6 +36,7 @@ export default function LocationSelectScreen() {
   const webViewRef = useRef<WebView>(null);
   const tilesLoadedRef = useRef(false);
   const tileTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initialLocationSentRef = useRef(false); // Track if we've sent initial location
   
   const [location, setLocation] = useState<LocationPoint | null>(null);
   const [mapReady, setMapReady] = useState(false);
@@ -47,16 +48,17 @@ export default function LocationSelectScreen() {
   const title = params.title as string || 'Select Location';
   const locationType = params.type as string || 'pickup'; // 'pickup' or 'delivery'
 
-  // Parse initial location from params
+  // Parse initial location from params - only run once on mount
   useEffect(() => {
     if (params.lat && params.lng) {
-      setLocation({
+      const initialLocation = {
         latitude: parseFloat(params.lat as string),
         longitude: parseFloat(params.lng as string),
         address: params.address as string,
-      });
+      };
+      setLocation(initialLocation);
     }
-  }, [params]);
+  }, [params.lat, params.lng, params.address]); // Only depend on the specific params we use
 
   // Timeout for tile loading
   useEffect(() => {
@@ -93,7 +95,9 @@ export default function LocationSelectScreen() {
       switch (msg.type) {
         case 'mapReady':
           setMapReady(true);
-          if (location) {
+          // Only send initial location once
+          if (!initialLocationSentRef.current && location) {
+            initialLocationSentRef.current = true;
             setTimeout(() => sendToMap('setLocation', location), 300);
           }
           break;
@@ -130,7 +134,7 @@ export default function LocationSelectScreen() {
     } catch (error) {
       console.log('[LocationSelect] Message handling error:', error);
     }
-  }, [location, sendToMap]);
+  }, [sendToMap, location]); // Add location back but protect with ref
 
   const searchLocation = useCallback(async () => {
     if (!searchQuery.trim()) {
