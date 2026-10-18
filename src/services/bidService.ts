@@ -137,7 +137,7 @@ export async function placeBid(payload: BidPayload): Promise<string> {
     updatedAt: Date.now(),
   });
 
-  // Increment job bid counter
+  // Increment job bid counter (drivers have permission to update bidCount and updatedAt fields only)
   await update(ref(db, `${DB_PATHS.jobs}/${payload.jobId}`), {
     bidCount: increment(1),
     updatedAt: now,

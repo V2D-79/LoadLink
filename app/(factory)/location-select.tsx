@@ -179,10 +179,27 @@ export default function LocationSelectScreen() {
       const loc = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.Balanced,
       });
+      
+      // Reverse geocode to get actual address
+      let address = `${loc.coords.latitude.toFixed(4)}, ${loc.coords.longitude.toFixed(4)}`;
+      try {
+        const url = `https://nominatim.openstreetmap.org/reverse?format=json&lat=${loc.coords.latitude}&lon=${loc.coords.longitude}&addressdetails=1`;
+        const response = await fetch(url, {
+          headers: { 'User-Agent': 'LoadLink-App' }
+        });
+        const data = await response.json();
+        if (data && data.display_name) {
+          address = data.display_name;
+          console.log('[LocationSelect] GPS reverse geocoded:', address);
+        }
+      } catch (error) {
+        console.log('[LocationSelect] GPS reverse geocoding failed:', error);
+      }
+      
       const point = {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
-        address: 'Current Location',
+        address: address,
       };
       setLocation(point);
       sendToMap('setLocation', point);

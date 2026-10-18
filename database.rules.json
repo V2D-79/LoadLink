@@ -81,7 +81,13 @@
         },
         "weightTonnes":  { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1000" },
         "budgetInr":     { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 99999999" },
-        "bidCount":      { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "bidCount": {
+          ".write": "auth !== null",
+          ".validate": "newData.isNumber() && newData.val() >= 0"
+        },
+        "updatedAt": {
+          ".write": "auth !== null"
+        },
         "availableFrom": { ".validate": "newData.isNumber()" },
         "availableUntil":{ ".validate": "newData.isNumber()" },
         "createdAt":     { ".validate": "newData.isNumber()" }
