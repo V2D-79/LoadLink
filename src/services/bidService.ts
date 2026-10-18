@@ -288,12 +288,14 @@ export async function rejectAssignment(
   jobId: string,
   assignmentId: string,
   driverUid: string,
+  reason?: string,
 ): Promise<void> {
   const db = getFirebaseDB();
   const now = serverTimestamp();
   await update(ref(db, `${DB_PATHS.assignments}/${jobId}/${assignmentId}`), {
     status: 'rejected',
     rejectedAt: now,
+    rejectionReason: reason || null,
   });
   // Reopen job
   await update(ref(db, `${DB_PATHS.jobs}/${jobId}`), {
@@ -303,6 +305,58 @@ export async function rejectAssignment(
     currentAssignmentId: null,
     updatedAt: now,
   });
+}
+
+/**
+ * Driver: cancel accepted job (emergency rejection after acceptance)
+ * This is more severe than rejecting an offer, should be used sparingly
+ */
+export async function cancelAcceptedJob(
+  jobId: string,
+  driverUid: string,
+  reason: string,
+): Promise<void> {
+  const db = getFirebaseDB();
+  
+  // Verify the driver is assigned
+  const jobSnap = await get(ref(db, `${DB_PATHS.jobs}/${jobId}`));
+  if (!jobSnap.exists()) {
+    throw new Error('Job not found');
+  }
+  
+  const job = jobSnap.val();
+  if (job.assignedDriverUid !== driverUid) {
+    throw new Error('You are not assigned to this job');
+  }
+  
+  // Only allow cancellation before heading to pickup
+  if (!['accepted', 'offered'].includes(job.status)) {
+    throw new Error('Cannot cancel job that is already in progress. Contact the factory.');
+  }
+  
+  const now = serverTimestamp();
+  
+  // Log the cancellation
+  await update(ref(db, `${DB_PATHS.jobs}/${jobId}`), {
+    status: 'open',
+    assignedDriverUid: null,
+    assignedTruckId: null,
+    currentAssignmentId: null,
+    driverCancelledAt: now,
+    driverCancellationReason: reason,
+    updatedAt: now,
+  });
+  
+  // Update assignment if exists
+  if (job.currentAssignmentId) {
+    await update(ref(db, `${DB_PATHS.assignments}/${jobId}/${job.currentAssignmentId}`), {
+      status: 'cancelled_by_driver',
+      cancelledAt: now,
+      cancellationReason: reason,
+    });
+  }
+  
+  console.log('[cancelAcceptedJob] Driver cancelled job:', { jobId, driverUid, reason });
 }
 
 // ── Fetch active bid for driver on a job ─────────────────────
@@ -315,3 +369,4 @@ export async function getDriverBidForJob(
   const snap = await get(ref(db, `${DB_PATHS.bidsByDriver}/${driverUid}/${jobId}`));
   return snap.exists() ? snap.val() : null;
 }
+

@@ -138,6 +138,10 @@ export default function DriverLayout() {
         options={{ href: null }}
       />
       <Tabs.Screen
+        name="reject-job"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
         name="notifications"
         options={{ href: null }}
       />

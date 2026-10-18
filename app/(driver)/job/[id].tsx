@@ -33,7 +33,6 @@ import {
   reviseBid,
   withdrawBid,
   acceptAssignment,
-  rejectAssignment,
   getDriverBidForJob,
 } from '../../../src/services/bidService';
 import { getFirebaseDB } from '../../../src/services/firebase';
@@ -206,25 +205,25 @@ export default function DriverJobDetailScreen() {
     }
   };
 
-  const onReject = async () => {
-    if (!jobId || !assignmentId || !firebaseUser?.uid) return;
-    Alert.alert('Reject offer?', 'The factory will be notified and the job will reopen.', [
-      { text: 'Cancel', style: 'cancel' },
-      {
-        text: 'Reject',
-        style: 'destructive',
-        onPress: async () => {
-          setLoading(true);
-          try {
-            await rejectAssignment(jobId, assignmentId, firebaseUser.uid);
-          } catch (err: any) {
-            setServerError(err.message);
-          } finally {
-            setLoading(false);
-          }
-        },
+  const onReject = () => {
+    router.push({
+      pathname: '/(driver)/reject-job',
+      params: {
+        jobId,
+        assignmentId,
+        isEmergency: 'false',
       },
-    ]);
+    } as any);
+  };
+
+  const onCancelAcceptedJob = () => {
+    router.push({
+      pathname: '/(driver)/reject-job',
+      params: {
+        jobId,
+        isEmergency: 'true',
+      },
+    } as any);
   };
 
   if (jobLoading) {
@@ -295,6 +294,13 @@ export default function DriverJobDetailScreen() {
             <Card style={[s.offerCard, { borderColor: COLORS.olive }]}>
               <Text style={[s.offerTitle, { color: COLORS.olive }]}>Job Accepted</Text>
               <Text style={s.offerSub}>Head to the pickup location. The factory is tracking your route.</Text>
+              <Button 
+                title="Emergency Cancel" 
+                onPress={onCancelAcceptedJob} 
+                variant="ghost" 
+                size="sm" 
+                style={{ marginTop: SPACING.xs, borderWidth: 1, borderColor: COLORS.brick }} 
+              />
             </Card>
           )}
 

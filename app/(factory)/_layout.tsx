@@ -146,6 +146,10 @@ export default function FactoryLayout() {
         options={{ href: null }}
       />
       <Tabs.Screen
+        name="edit-job"
+        options={{ href: null }}
+      />
+      <Tabs.Screen
         name="location-select"
         options={{ href: null }}
       />

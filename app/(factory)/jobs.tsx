@@ -16,11 +16,14 @@ import {
   FlatList,
   Pressable,
   RefreshControl,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { query, ref, orderByChild, equalTo, get } from 'firebase/database';
 import Animated, { FadeInDown } from 'react-native-reanimated';
+import { Ionicons } from '@expo/vector-icons';
 
 import { getFirebaseDB } from '../../src/services/firebase';
 import { useAuthContext } from '../../src/hooks/AuthContext';
@@ -28,6 +31,7 @@ import { useRTDBList } from '../../src/hooks/useRTDB';
 import { Card, Chip, EmptyState, JobCardSkeleton } from '../../src/ui';
 import { COLORS, FONTS, FONT_SIZES, SPACING, RADII } from '../../src/constants/theme';
 import { DB_PATHS, JOB_STATUSES, GOODS_CATEGORY_LABELS } from '../../src/constants/app';
+import { deleteJob } from '../../src/services/jobService';
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -73,13 +77,40 @@ const STATUS_PAST = ['delivered', 'completed', 'cancelled', 'expired'];
 
 // ── Job card ──────────────────────────────────────────────────
 
-function JobCard({ job, onPress, index }: { job: Job; onPress: () => void; index: number }) {
+function JobCard({ 
+  job, 
+  onPress, 
+  onEdit,
+  onDelete, 
+  index,
+  isDeleting 
+}: { 
+  job: Job; 
+  onPress: () => void; 
+  onEdit: () => void;
+  onDelete: () => void; 
+  index: number;
+  isDeleting: boolean;
+}) {
   const isActive = STATUS_ACTIVE.includes(job.status);
+  const canEditOrDelete = job.status === 'open';
 
   return (
     <Animated.View entering={FadeInDown.delay(index * 60).duration(350)}>
-      <Pressable onPress={onPress} accessibilityRole="button" accessibilityLabel={`Job from ${job.pickupCity} to ${job.deliveryCity}`}>
-        <Card style={s.jobCard}>
+      <Pressable 
+        onPress={onPress} 
+        accessibilityRole="button" 
+        accessibilityLabel={`Job from ${job.pickupCity} to ${job.deliveryCity}`}
+        disabled={isDeleting}
+      >
+        <Card style={[s.jobCard, isDeleting && s.jobCardDeleting]}>
+          {isDeleting && (
+            <View style={s.deletingOverlay}>
+              <ActivityIndicator size="large" color={COLORS.ochre} />
+              <Text style={s.deletingText}>Deleting...</Text>
+            </View>
+          )}
+          
           {/* Route row */}
           <View style={s.routeRow}>
             <View style={s.city}>
@@ -104,7 +135,7 @@ function JobCard({ job, onPress, index }: { job: Job; onPress: () => void; index
             <Text style={s.metaText}>{job.weightTonnes}t</Text>
           </View>
 
-          {/* Footer row */}
+          {/* Footer row with action buttons */}
           <View style={s.footerRow}>
             <View style={s.bidBadge}>
               <Text style={s.bidCount}>{job.bidCount}</Text>
@@ -117,6 +148,34 @@ function JobCard({ job, onPress, index }: { job: Job; onPress: () => void; index
             )}
             <Text style={s.time}>{relativeTime(job.createdAt)}</Text>
           </View>
+
+          {/* Action buttons - only show for open jobs */}
+          {canEditOrDelete && !isDeleting && (
+            <View style={s.actionButtons}>
+              <Pressable 
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+                style={s.actionButton}
+                accessibilityRole="button"
+                accessibilityLabel="Edit job"
+              >
+                <Ionicons name="pencil" size={18} color={COLORS.charcoal} />
+              </Pressable>
+              <Pressable 
+                onPress={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                style={[s.actionButton, s.deleteButton]}
+                accessibilityRole="button"
+                accessibilityLabel="Delete job"
+              >
+                <Ionicons name="trash-outline" size={18} color={COLORS.brick} />
+              </Pressable>
+            </View>
+          )}
         </Card>
       </Pressable>
     </Animated.View>
@@ -137,6 +196,7 @@ export default function JobsScreen() {
   const { firebaseUser } = useAuthContext();
   const router = useRouter();
   const [tab, setTab] = useState<'active' | 'past' | 'all'>('active');
+  const [deletingJobId, setDeletingJobId] = useState<string | null>(null);
 
   const { data: allJobs, loading, error } = useRTDBList<Job>(
     firebaseUser?.uid ? DB_PATHS.jobs : null,
@@ -152,6 +212,33 @@ export default function JobsScreen() {
     if (tab === 'past') return sorted.filter((j) => STATUS_PAST.includes(j.status));
     return sorted;
   }, [allJobs, firebaseUser?.uid, tab]);
+
+  const handleDeleteJob = (job: Job) => {
+    Alert.alert(
+      'Delete Job',
+      `Are you sure you want to delete this job from ${job.pickupCity} to ${job.deliveryCity}?\n\nThis action cannot be undone.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            if (!firebaseUser?.uid) return;
+            
+            setDeletingJobId(job.jobId);
+            try {
+              await deleteJob(job.jobId, firebaseUser.uid);
+              Alert.alert('Success', 'Job deleted successfully');
+            } catch (err: any) {
+              Alert.alert('Error', err.message || 'Failed to delete job');
+            } finally {
+              setDeletingJobId(null);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   return (
     <View style={s.root}>
@@ -218,6 +305,12 @@ export default function JobsScreen() {
               job={item}
               index={index}
               onPress={() => router.push(`/(factory)/job/${item.jobId}` as any)}
+              onEdit={() => router.push({
+                pathname: '/(factory)/edit-job',
+                params: { jobId: item.jobId }
+              } as any)}
+              onDelete={() => handleDeleteJob(item)}
+              isDeleting={deletingJobId === item.jobId}
             />
           )}
           contentContainerStyle={{ padding: SPACING.md, paddingBottom: SPACING.xxl, gap: SPACING.sm }}
@@ -276,4 +369,45 @@ const s = StyleSheet.create({
   bidLabel: { fontFamily: FONTS.bodyRegular, fontSize: FONT_SIZES.xs, color: COLORS.ochre },
   budget: { fontFamily: FONTS.bodyMedium, fontSize: FONT_SIZES.xs, color: COLORS.charcoal, flex: 1 },
   time: { fontFamily: FONTS.bodyRegular, fontSize: FONT_SIZES.xxs, color: COLORS.steel },
+  jobCardDeleting: {
+    opacity: 0.6,
+  },
+  deletingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: COLORS.offWhite + 'CC',
+    zIndex: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderRadius: RADII.md,
+  },
+  deletingText: {
+    fontFamily: FONTS.bodySemiBold,
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.charcoal,
+    marginTop: SPACING.xs,
+  },
+  actionButtons: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: SPACING.xs,
+    marginTop: SPACING.sm,
+    paddingTop: SPACING.sm,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.hairline,
+  },
+  actionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: RADII.sm,
+    backgroundColor: COLORS.steel + '15',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  deleteButton: {
+    backgroundColor: COLORS.brick + '15',
+  },
 });

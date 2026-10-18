@@ -25,6 +25,7 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useAuthContext } from '../../../src/hooks/AuthContext';
 import { useRTDBValue, useRTDBList } from '../../../src/hooks/useRTDB';
 import { offerAssignment } from '../../../src/services/bidService';
+import { cancelJob } from '../../../src/services/jobService';
 import { Card, Chip, Button } from '../../../src/ui';
 import DriverProfileSheet from '../../../src/components/DriverProfileSheet';
 import { COLORS, FONTS, FONT_SIZES, SPACING, RADII } from '../../../src/constants/theme';
@@ -153,6 +154,7 @@ export default function FactoryJobDetailScreen() {
   const [offeringId, setOfferingId] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [driverSheetOpen, setDriverSheetOpen] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
 
   // Partial bid visibility: show active bids only, sorted by amount
   const activeBids = useMemo(() => {
@@ -181,6 +183,37 @@ export default function FactoryJobDetailScreen() {
               setError(err.message ?? 'Failed to send offer.');
             } finally {
               setOfferingId(null);
+            }
+          },
+        },
+      ],
+    );
+  };
+
+  const handleCancelJob = () => {
+    if (!jobId || !firebaseUser || !job) return;
+    
+    Alert.alert(
+      'Cancel Job',
+      `Are you sure you want to cancel this job from ${job.pickupCity} to ${job.deliveryCity}?\n\nThis will notify all bidding drivers and cannot be undone.`,
+      [
+        { text: 'No, Keep Job', style: 'cancel' },
+        {
+          text: 'Yes, Cancel Job',
+          style: 'destructive',
+          onPress: async () => {
+            setIsCancelling(true);
+            setError('');
+            try {
+              await cancelJob(jobId, firebaseUser.uid, 'Cancelled by factory');
+              Alert.alert('Success', 'Job cancelled successfully', [
+                { text: 'OK', onPress: () => router.back() }
+              ]);
+            } catch (err: any) {
+              setError(err.message ?? 'Failed to cancel job.');
+              Alert.alert('Error', err.message ?? 'Failed to cancel job.');
+            } finally {
+              setIsCancelling(false);
             }
           },
         },
@@ -241,6 +274,37 @@ export default function FactoryJobDetailScreen() {
 
         {error.length > 0 && (
           <View style={s.errorBanner}><Text style={s.errorBannerText}>{error}</Text></View>
+        )}
+
+        {/* Rejection/Cancellation reason */}
+        {(job.driverCancellationReason || job.currentAssignmentId) && (
+          <Card style={[s.detailCard, { backgroundColor: COLORS.brick + '10', borderColor: COLORS.brick, borderWidth: 1 }]}>
+            <Text style={[s.sectionTitle, { color: COLORS.brick }]}>
+              {job.driverCancellationReason ? 'Driver Cancelled Job' : 'Assignment Status'}
+            </Text>
+            {job.driverCancellationReason && (
+              <>
+                <Text style={s.rejectionLabel}>Reason provided:</Text>
+                <Text style={s.rejectionReason}>{job.driverCancellationReason}</Text>
+                <Text style={[s.assignedSub, { marginTop: SPACING.xs }]}>
+                  The job has been reopened. You can select another driver from the bids below.
+                </Text>
+              </>
+            )}
+          </Card>
+        )}
+
+        {/* Cancel Job button - only show for open or offered jobs */}
+        {(job.status === 'open' || job.status === 'offered') && (
+          <Button
+            title={isCancelling ? 'Cancelling...' : 'Cancel Job'}
+            onPress={handleCancelJob}
+            variant="outline"
+            size="md"
+            disabled={isCancelling}
+            style={{ marginBottom: SPACING.md, borderColor: COLORS.brick }}
+            textStyle={{ color: COLORS.brick }}
+          />
         )}
 
         {/* Job details */}
@@ -413,5 +477,7 @@ const s = StyleSheet.create({
   driverCardTitle: { fontFamily: FONTS.headingSemiBold, fontSize: FONT_SIZES.sm, color: COLORS.offWhite },
   driverCardSub: { fontFamily: FONTS.bodyRegular, fontSize: FONT_SIZES.xs, color: COLORS.steel, marginTop: 2 },
   driverCardArrow: { fontSize: 24, color: COLORS.ochre, fontFamily: FONTS.headingBold },
+  rejectionLabel: { fontFamily: FONTS.bodySemiBold, fontSize: FONT_SIZES.xs, color: COLORS.steel, marginTop: SPACING.xs, textTransform: 'uppercase', letterSpacing: 0.6 },
+  rejectionReason: { fontFamily: FONTS.bodyRegular, fontSize: FONT_SIZES.sm, color: COLORS.charcoal, marginTop: SPACING.xxs, lineHeight: 20 },
 });
 
