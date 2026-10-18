@@ -1,0 +1,33 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"],
+      "@components/*": ["src/components/*"],
+      "@ui/*": ["src/ui/*"],
+      "@services/*": ["src/services/*"],
+      "@engine/*": ["src/engine/*"],
+      "@validation/*": ["src/validation/*"],
+      "@constants/*": ["src/constants/*"],
+      "@hooks/*": ["src/hooks/*"],
+      "@i18n/*": ["src/i18n/*"],
+      "@utils/*": ["src/utils/*"],
+      "@assets/*": ["assets/*"]
+    },
+    "types": ["jest-expo"],
+    "forceConsistentCasingInFileNames": true,
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ],
+  "exclude": [
+    "node_modules"
+  ]
+}

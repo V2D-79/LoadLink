@@ -1,0 +1,78 @@
+{
+  "expo": {
+    "name": "LoadLink",
+    "slug": "loadlink",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "scheme": "loadlink",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1E2224"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1E2224"
+      },
+      "package": "com.loadlink.app",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM"
+      ],
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "platforms": [
+      "android"
+    ],
+    "plugins": [
+      "expo-router",
+      "expo-font",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "LoadLink needs your location to share your truck position with the factory during active deliveries.",
+          "locationWhenInUsePermission": "LoadLink needs your location to show nearby jobs and share your position during deliveries."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "LoadLink needs camera access for truck photos, cargo images, and delivery proof.",
+          "photosPermission": "LoadLink needs photo access to upload truck and cargo images."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#B8741A"
+        }
+      ],
+      "expo-localization",
+      "@react-native-community/datetimepicker",
+      "expo-asset"
+    ],
+    "extra": {
+      "router": {
+        "origin": false
+      },
+      "eas": {
+        "projectId": "loadlink-local"
+      }
+    },
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

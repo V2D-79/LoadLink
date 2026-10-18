@@ -1,0 +1,274 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    /* ── Public user profiles ─────────────────────────────────── */
+    "users": {
+      "$uid": {
+        ".read": true,
+        ".write": "auth !== null && auth.uid === $uid",
+        "uid":           { ".validate": "newData.val() === $uid" },
+        "role":          { ".validate": "newData.val() === 'factory' || newData.val() === 'driver'" },
+        "fullName":      { ".validate": "newData.isString() && newData.val().length >= 2 && newData.val().length <= 80" },
+        "orgName":       { ".validate": "newData.isString() && newData.val().length <= 200" },
+        "city":          { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 100" },
+        "state":         { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 100" },
+        "averageRating": { ".validate": "newData.isNumber() && newData.val() >= 0 && newData.val() <= 5" },
+        "ratingCount":   { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "language":      { ".validate": "newData.val() === 'en' || newData.val() === 'mr' || newData.val() === 'hi'" },
+        "createdAt":     { ".validate": "newData.isNumber()" }
+      }
+    },
+
+    /* ── Private user data (phone, GST, push token, primaryTruckId) ── */
+    "userPrivate": {
+      "$uid": {
+        ".read":  "auth !== null && (
+          auth.uid === $uid
+          || root.child('jobs').orderByChild('assignedDriverUid').equalTo($uid).limitToFirst(1).val() !== null
+        )",
+        ".write": "auth !== null && auth.uid === $uid",
+        "phone":          { ".validate": "newData.isString() && newData.val().length >= 10 && newData.val().length <= 15" },
+        "whatsapp":       { ".validate": "newData.isString() && newData.val().length <= 15" },
+        "gstNumber":      { ".validate": "newData.isString() && newData.val().length <= 15" },
+        "primaryTruckId": { ".validate": "newData.isString()" },
+        "expoPushToken":  { ".validate": "newData.isString()" }
+      },
+      ".indexOn": ["phone"]
+    },
+
+    /* ── Phone uniqueness index ───────────────────────────────── */
+    /* Read is public — only sha256(phone) hashes stored, one-way safe */
+    "phoneIndex": {
+      "$phoneHash": {
+        ".read":  true,
+        ".write": "auth !== null && (!data.exists() || data.val() === auth.uid)",
+        ".validate": "newData.isString()"
+      }
+    },
+
+    /* ── Truck fleet ─────────────────────────────────────────── */
+    "trucks": {
+      "$driverUid": {
+        ".read": true,
+        ".write": "auth !== null && auth.uid === $driverUid",
+        "$truckId": {
+          "truckId":             { ".validate": "newData.val() === $truckId" },
+          "driverUid":           { ".validate": "newData.val() === $driverUid" },
+          "regNumber":           { ".validate": "newData.isString() && newData.val().length >= 5 && newData.val().length <= 20" },
+          "vehicleType":         { ".validate": "newData.isString()" },
+          "bodyType":            { ".validate": "newData.isString()" },
+          "maxCapacityTonnes":   { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 100" }
+        }
+      }
+    },
+
+    /* ── Transport jobs (public header) ──────────────────────── */
+    "jobs": {
+      ".read": "auth !== null",
+      "$jobId": {
+        ".write": "auth !== null && (
+          !data.exists() && newData.child('factoryUid').val() === auth.uid
+          || data.child('factoryUid').val() === auth.uid
+          || data.child('assignedDriverUid').val() === auth.uid
+          || newData.child('assignedDriverUid').val() === auth.uid
+        )",
+        "jobId":      { ".validate": "newData.val() === $jobId" },
+        "factoryUid": { ".validate": "newData.isString()" },
+        "status": {
+          ".validate": "newData.val() === 'open' || newData.val() === 'offered' || newData.val() === 'accepted' || newData.val() === 'heading_to_pickup' || newData.val() === 'loaded' || newData.val() === 'in_transit' || newData.val() === 'delivered' || newData.val() === 'completed' || newData.val() === 'cancelled'"
+        },
+        "weightTonnes":  { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 1000" },
+        "budgetInr":     { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 99999999" },
+        "bidCount":      { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "availableFrom": { ".validate": "newData.isNumber()" },
+        "availableUntil":{ ".validate": "newData.isNumber()" },
+        "createdAt":     { ".validate": "newData.isNumber()" }
+      },
+      ".indexOn": ["status", "factoryUid", "pickupState", "deliveryState", "createdAt"]
+    },
+
+    /* ── Private job data (exact addresses, handover code hashes) ─ */
+    "jobPrivate": {
+      "$jobId": {
+        ".read": "auth !== null && (
+          root.child('jobs').child($jobId).child('factoryUid').val() === auth.uid
+          || root.child('jobs').child($jobId).child('assignedDriverUid').val() === auth.uid
+        )",
+        ".write": "auth !== null && (
+          root.child('jobs').child($jobId).child('factoryUid').val() === auth.uid
+          || root.child('jobs').child($jobId).child('assignedDriverUid').val() === auth.uid
+        )",
+        "pickupCodeHash":   { ".validate": "newData.isString()" },
+        "deliveryCodeHash": { ".validate": "newData.isString()" },
+        "pickupAddress":    { ".validate": "newData.isString() && newData.val().length <= 500" },
+        "deliveryAddress":  { ".validate": "newData.isString() && newData.val().length <= 500" }
+      }
+    },
+
+    /* ── Bids (partial visibility: driver sees own, factory sees all) */
+    "bids": {
+      "$jobId": {
+        ".read": "auth !== null",
+        "$bidId": {
+          ".write": "auth !== null && (
+            newData.exists() && newData.child('driverUid').val() === auth.uid
+            || data.exists() && data.child('driverUid').val() === auth.uid
+            || data.exists() && root.child('jobs').child($jobId).child('factoryUid').val() === auth.uid
+          )",
+          "bidId":     { ".validate": "newData.val() === $bidId" },
+          "jobId":     { ".validate": "newData.val() === $jobId" },
+          "amountInr": { ".validate": "newData.isNumber() && newData.val() >= 100 && newData.val() <= 9999999" },
+          "status":    { ".validate": "newData.val() === 'active' || newData.val() === 'superseded' || newData.val() === 'withdrawn' || newData.val() === 'declined' || newData.val() === 'selected'" }
+        },
+        ".indexOn": ["driverUid", "status", "amountInr"]
+      }
+    },
+
+    /* ── Bids by driver quick-lookup index ───────────────────── */
+    "bidsByDriver": {
+      "$driverUid": {
+        ".read":  "auth !== null && auth.uid === $driverUid",
+        ".write": "auth !== null && auth.uid === $driverUid",
+        "$jobId": {
+          ".validate": "!newData.exists() || newData.hasChildren(['bidId','amountInr','updatedAt'])"
+        }
+      }
+    },
+
+    /* ── Assignments / offers ─────────────────────────────────── */
+    "assignments": {
+      "$jobId": {
+        ".read": "auth !== null && (
+          root.child('jobs').child($jobId).child('factoryUid').val() === auth.uid
+          || root.child('jobs').child($jobId).child('assignedDriverUid').val() === auth.uid
+        )",
+        "$assignmentId": {
+          ".write": "auth !== null && (
+            root.child('jobs').child($jobId).child('factoryUid').val() === auth.uid
+            || root.child('jobs').child($jobId).child('assignedDriverUid').val() === auth.uid
+          )",
+          "status": { ".validate": "newData.val() === 'offered' || newData.val() === 'accepted' || newData.val() === 'rejected' || newData.val() === 'expired'" },
+          "expiresAt": { ".validate": "newData.isNumber()" }
+        }
+      }
+    },
+
+    /* ── Driver active routes ─────────────────────────────────── */
+    "driverRoutes": {
+      "$driverUid": {
+        ".read":  true,
+        ".write": "auth !== null && auth.uid === $driverUid",
+        "driverUid": { ".validate": "newData.val() === $driverUid" }
+      },
+      ".indexOn": ["isActive"]
+    },
+
+    /* ── Spatial cell index: jobs ─────────────────────────────── */
+    "cellIndexJobs": {
+      "$cellKey": {
+        ".read": "auth !== null",
+        "$jobId": {
+          ".write": "auth !== null",
+          ".validate": "newData.isBoolean() && newData.val() === true"
+        }
+      }
+    },
+
+    /* ── Spatial cell index: routes ──────────────────────────── */
+    "cellIndexRoutes": {
+      "$cellKey": {
+        ".read": "auth !== null",
+        "$driverUid": {
+          ".write": "auth !== null && auth.uid === $driverUid",
+          ".validate": "newData.isBoolean() && newData.val() === true"
+        }
+      }
+    },
+
+    /* ── Live driver location ─────────────────────────────────── */
+    "liveLocation": {
+      "$driverUid": {
+        ".read":  "auth !== null",
+        ".write": "auth !== null && auth.uid === $driverUid",
+        ".validate": "newData.hasChildren(['lat','lng','updatedAt'])",
+        "lat":       { ".validate": "newData.isNumber() && newData.val() >= 6 && newData.val() <= 38" },
+        "lng":       { ".validate": "newData.isNumber() && newData.val() >= 68 && newData.val() <= 98" },
+        "accuracy":  { ".validate": "newData.isNumber() || !newData.exists()" },
+        "heading":   { ".validate": "newData.isNumber() || !newData.exists()" },
+        "updatedAt": { ".validate": "newData.isNumber()" }
+      }
+    },
+
+    /* ── Trip event log ──────────────────────────────────────── */
+    "tripEvents": {
+      "$jobId": {
+        ".read": "auth !== null && (
+          root.child('jobs').child($jobId).child('factoryUid').val() === auth.uid
+          || root.child('jobs').child($jobId).child('assignedDriverUid').val() === auth.uid
+        )",
+        ".write": "auth !== null && (
+          root.child('jobs').child($jobId).child('factoryUid').val() === auth.uid
+          || root.child('jobs').child($jobId).child('assignedDriverUid').val() === auth.uid
+        )",
+        "$eventId": {
+          ".validate": "newData.hasChildren(['status','actorUid','note','ts'])"
+        },
+        ".indexOn": ["ts"]
+      }
+    },
+
+    /* ── Reviews and ratings ─────────────────────────────────── */
+    "reviews": {
+      "$revieweeUid": {
+        ".read": true,
+        "$reviewId": {
+          ".write": "auth !== null && auth.uid !== $revieweeUid",
+          "stars":   { ".validate": "newData.isNumber() && newData.val() >= 1 && newData.val() <= 5" },
+          "comment": { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 500)" }
+        },
+        ".indexOn": ["createdAt"]
+      }
+    },
+
+    /* ── Notifications ───────────────────────────────────────── */
+    "notifications": {
+      "$uid": {
+        ".read":  "auth !== null && auth.uid === $uid",
+        ".write": "auth !== null",
+        "$notifId": {
+          ".validate": "newData.hasChildren(['type','title','body','read','createdAt'])",
+          "read":      { ".validate": "newData.isBoolean()" },
+          "createdAt": { ".validate": "newData.isNumber()" }
+        },
+        ".indexOn": ["read", "createdAt"]
+      }
+    },
+
+    /* ── Phone-to-email mapping (auth service) ───────────────── */
+    /* Read is public — only sha256 hashes, needed for login before auth exists */
+    "emailByPhone": {
+      "$phoneHash": {
+        ".read":  true,
+        ".write": "auth !== null && (!data.exists() || data.val() === auth.uid)",
+        ".validate": "newData.isString()"
+      }
+    },
+
+    /* ── Global counters (read-only for users, system writes) ── */
+    "counters": {
+      ".read": "auth !== null",
+      ".write": "auth !== null",
+      "totalJobs": {
+        ".validate": "newData.isNumber() && newData.val() >= 0"
+      },
+      "totalDrivers": {
+        ".validate": "newData.isNumber() && newData.val() >= 0"
+      },
+      "totalFactories": {
+        ".validate": "newData.isNumber() && newData.val() >= 0"
+      }
+    }
+  }
+}
